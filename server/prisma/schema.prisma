@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  INACTIVE
+}
+
+enum Transmission {
+  MANUAL
+  AUTOMATIC
+  CVT
+}
+
+enum FuelType {
+  BENSIN
+  DIESEL
+  LISTRIK
+  HYBRID
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  E_WALLET
+  CASH
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  email       String   @unique @db.VarChar(150)
+  phone       String   @db.VarChar(20)
+  password    String   @db.VarChar(255)
+  role        Role     @default(CUSTOMER)
+  isActive    Boolean  @default(true)
+  avatar      String?  @db.VarChar(500)
+  address     String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings     Booking[]
+  reviews      Review[]
+  notifications Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  icon        String?  @db.VarChar(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vehicles Vehicle[]
+
+  @@map("categories")
+}
+
+model Vehicle {
+  id              Int           @id @default(autoincrement())
+  name            String        @db.VarChar(150)
+  brand           String        @db.VarChar(100)
+  model           String        @db.VarChar(100)
+  year            Int
+  color           String        @db.VarChar(50)
+  licensePlate    String        @unique @db.VarChar(20)
+  description     String?       @db.Text
+  pricePerDay     Decimal       @db.Decimal(12, 2)
+  transmission    Transmission  @default(MANUAL)
+  fuelType        FuelType      @default(BENSIN)
+  capacity        Int           @default(4)
+  status          VehicleStatus @default(AVAILABLE)
+  location        String        @db.VarChar(200)
+  features        String?       @db.Text
+  categoryId      Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  category    Category       @relation(fields: [categoryId], references: [id])
+  images      VehicleImage[]
+  bookings    Booking[]
+  reviews     Review[]
+
+  @@index([categoryId])
+  @@index([status])
+  @@index([pricePerDay])
+  @@map("vehicles")
+}
+
+model VehicleImage {
+  id        Int      @id @default(autoincrement())
+  vehicleId Int
+  url       String   @db.VarChar(500)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@map("vehicle_images")
+}
+
+model Booking {
+  id              Int           @id @default(autoincrement())
+  bookingCode     String        @unique @db.VarChar(20)
+  userId          Int
+  vehicleId       Int
+  startDate       DateTime
+  endDate         DateTime
+  totalDays       Int
+  pricePerDay     Decimal       @db.Decimal(12, 2)
+  subtotal        Decimal       @db.Decimal(12, 2)
+  additionalFee   Decimal       @default(0) @db.Decimal(12, 2)
+  totalPrice      Decimal       @db.Decimal(12, 2)
+  status          BookingStatus @default(PENDING)
+  pickupLocation  String        @db.VarChar(200)
+  notes           String?       @db.Text
+  rejectionReason String?       @db.Text
+  pickedUpAt      DateTime?
+  returnedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  vehicle  Vehicle  @relation(fields: [vehicleId], references: [id])
+  payment  Payment?
+
+  @@index([userId])
+  @@index([vehicleId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("bookings")
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  bookingId     Int           @unique
+  amount        Decimal       @db.Decimal(12, 2)
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  paidAt        DateTime?
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  booking     Booking        @relation(fields: [bookingId], references: [id])
+  proofs      PaymentProof[]
+
+  @@index([status])
+  @@map("payments")
+}
+
+model PaymentProof {
+  id        Int      @id @default(autoincrement())
+  paymentId Int
+  fileUrl   String   @db.VarChar(500)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("payment_proofs")
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  vehicleId Int
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+
+  @@unique([userId, vehicleId])
+  @@index([vehicleId])
+  @@map("reviews")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String   @db.VarChar(200)
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  type      String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("notifications")
+}
